@@ -1,3 +1,23 @@
+package #hide
+	XML::LibXML::Node;
+use XML::LibXML;
+BEGIN {
+	if (exists  $XML::LibXML::Node::{'(""'}) { # to string overload
+		#warn "XML::LibXML::Node stringification already done";
+	} else {
+		#warn "Setup to_string overload";
+		require overload;
+		require Scalar::Util;
+		overload->import(
+			'""'     => sub { $_[0]->toString },
+			'bool'   => sub { 1 },
+			'0+'     => sub { Scalar::Util::refaddr($_[0]) },
+			fallback => 1,
+		);
+	}
+	#exit;
+}
+
 package XML::Parser::Style::XMPP;
 
 use 5.008008;
@@ -74,7 +94,15 @@ sub Start {
 
 sub Char {
     my $e = shift;
-    return unless $e->{current};
+    unless ($e->{current}) {
+        return if $_[0] =~ /^\s*$/;
+        if (exists $e->{On}{StreamError}) {
+            $e->{On}{StreamError}( "Character string in wrong place", $_[0] );
+            return;
+        } else {
+            die "Character string <$_[0]> in wrong place\n";
+        }
+    }
     $e->{current}->appendTextNode(shift);
 }
 
