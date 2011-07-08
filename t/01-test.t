@@ -2,7 +2,7 @@
 
 use common::sense;
 use lib::abs '../lib';
-use Test::More tests => 14;
+use Test::More tests => 21;
 use Test::NoWarnings;
 use XML::Parser;
 use XML::Parser::Style::XMPP;
@@ -31,6 +31,11 @@ my $xml = q{<?xml version='1.0' encoding='UTF-8'?>
 </stream:stream>
 
 };
+my $xml2 = q{<?xml version='1.0' encoding='UTF-8'?>
+<stream:stream xmlns:stream="http://etherx.jabber.org/streams" xmlns="jabber:client" from="rambler.ru" id="123456789X" xml:lang="en" version="1.0">
+<utf>тест</utf>
+</stream:stream>
+};utf8::encode($xml2);
 
 my @sequence = (
     'stream_start',
@@ -79,21 +84,6 @@ my $parser = XML::Parser->new(
                     ($bindns) = $xc->find('//bind:bind');
                     ok $bindns, 'have bind by NS aware xpath';
                 }
-                
-=for rem
-                #warn "\ngetElementByTagNameNS: " . $s->getElementsByTagNameNS( 'urn:ietf:params:xml:ns:xmpp-bind','bind' );
-                return;
-                #$s->setNamespace( 'stream', '' )
-
-                my $xc = XML::LibXML::XPathContext->new($s);
-                $xc->registerNs('bind', 'urn:ietf:params:xml:ns:xmpp-bind');
-                eval{ warn "\nxp.find: " . $xc->find('//bind') };
-                eval{ warn "\nxp.findNS: " . $xc->find('//bind:bind') };
-                eval{ warn "\ns.find: " . $s->find('//bind') };
-                eval{ warn "\ns.findNS: " . $s->find('//bind:bind') };
-                
-                warn "done";
-=cut
             },
         },
         StreamEnd => sub {
@@ -104,7 +94,51 @@ my $parser = XML::Parser->new(
 );
 
 my $sax = $parser->parse_start();
-
 for my $line ( split /\n/, $xml ) {
+    $sax->parse_more($line);
+}
+
+@sequence = (
+    'stream_start',
+    'utf',
+    'stream_end',
+);
+
+$parser = XML::Parser->new(
+    Style => 'XMPP',
+    On => {
+        StreamStart => sub {
+            my $s = shift;
+            diag "Stream start ".$s->toString();
+            is shift(@sequence), "stream_start", 'stream order';
+            my ($ns) = $s->getNamespaces;
+            is $ns->getValue,'jabber:client', 'stream ns';
+            is $s->getAttribute('id'), '123456789X', 'stream id';
+        },
+        Stanza => {
+            '' => sub {
+                my $s = shift;
+                diag "Got stanza: ".$s->toString();
+                is shift(@sequence), $s->nodeName, 'sequence';
+            },
+            utf => sub {
+                my $s = shift;
+                #diag "Got utf: ".$s->toString()."\n";
+                is shift(@sequence), $s->nodeName, 'sequence';
+                my $text = $s->textContent;
+                is ($text, "тест", "string is ok");
+                ok (utf8::is_utf8($text), "string is utf");
+                
+            },
+        },
+        StreamEnd => sub {
+            diag "Stream end";
+            is shift(@sequence), "stream_end", 'sequence';
+        },
+    }
+);
+
+$sax = $parser->parse_start();
+for my $line ( split //, $xml2 ) {
     $sax->parse_more($line);
 }
