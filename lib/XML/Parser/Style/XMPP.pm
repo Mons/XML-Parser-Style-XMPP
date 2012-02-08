@@ -81,14 +81,14 @@ sub Start {
         }
         $e->{current} = $node;
     } else {
-        if ($tag =~ /^(.+):stream$/) {
+        #if ($tag =~ /^(.+):stream$/) {
             $e->{On}{StreamStart} and $e->{On}{StreamStart}($node);
             $e->{StreamAttrs} = \%attrs;
             $e->{Stream} = $node;
-        }
-        else {
-            croak "Bad initial stream tag: <$tag>\n";
-        }
+        #}
+        #else {
+        #    croak "Bad initial stream tag: <$tag>\n";
+        #}
     }
 }
 
@@ -134,6 +134,8 @@ sub End {
     #    die "Broken XML: end tag $tag, while opened ".$e->{current}->nodeName;
     #}
     if (! @{ $e->{nested} } ) {
+        exists $e->{On}{StanzaDebug} and $e->{On}{StanzaDebug}($node);
+        
         exists $e->{On}{Stanza}{ $node->nodeName }
             ? $e->{On}{Stanza}{ $node->nodeName }($node)
             : $e->{On}{Stanza}{''}( $e->{current} );
